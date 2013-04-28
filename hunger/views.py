@@ -40,10 +40,7 @@ class NotBetaView(TemplateView):
             invitations = request.user.invitation_set.all()
             if any(i.used for i in invitations):
                 return redirect(setting("HUNGER_VERIFIED_REDIRECT"))
-        #print "OOOOOOK"
-        #print args
-        #print kwargs
-        #import IPython; IPython.embed()
+
         return super(TemplateView, self).dispatch(request, *args, **kwargs)
 
 
