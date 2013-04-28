@@ -1,3 +1,5 @@
+import logging
+
 from django.core.urlresolvers import reverse_lazy
 from django.views.generic.base import TemplateView
 from django.views.generic.edit import FormView
@@ -7,6 +9,8 @@ from hunger.models import InvitationCode
 from hunger.forms import InviteSendForm
 from hunger.utils import setting, now
 from hunger.middleware import invite_from_cookie_and_email
+
+logger = logging.getLogger(__name__)
 
 
 class InviteView(FormView):
@@ -42,10 +46,10 @@ class NotBetaView(TemplateView):
             verified_redirect = redirect(setting("HUNGER_VERIFIED_REDIRECT"))
             invitations = request.user.invitation_set.all()
             if any(i.used or i.invited for i in invitations):
-                print "IN VIEW - used or invited"
+                ##print "IN VIEW - used or invited"
                 return verified_redirect
-            if invite_from_cookie_and_email(request):
-                print "IN BETA VIEW - we can get_from_cookie"
+            elif invite_from_cookie_and_email(request):
+                ##print "IN BETA VIEW - we can get_from_cookie"
                 return verified_redirect
 
         return super(TemplateView, self).dispatch(request, *args, **kwargs)

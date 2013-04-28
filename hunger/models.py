@@ -53,7 +53,7 @@ class Invitation(models.Model):
         self.save()
         self.code.num_invites -= 1
         self.code.save()
-        print "we used the code", self.code
+        #print "we used the code", self.code
 
 
 class InvitationCode(models.Model):

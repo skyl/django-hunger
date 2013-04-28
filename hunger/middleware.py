@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 def invite_from_cookie_and_email(request):
-    print 90
+    #print 90
     cookie_code = request.COOKIES.get('hunger_code')
-    print "code", cookie_code
+    #print "code", cookie_code
     if not cookie_code:
-        print "missed, no cookie, nada,  returning redirect"
+        #print "missed, no cookie, nada,  returning redirect"
         return False
 
     # No invitation, all we have is this cookie code
@@ -24,7 +24,7 @@ def invite_from_cookie_and_email(request):
         code = InvitationCode.objects.get(
             code=cookie_code, num_invites__gt=0)
     except InvitationCode.DoesNotExist:
-        print "invalid cookie code"
+        #print "invalid cookie code"
         request._hunger_delete_cookie = True
         return False
 
@@ -36,7 +36,7 @@ def invite_from_cookie_and_email(request):
         )
     except Invitation.DoesNotExist:
         request._hunger_delete_cookie = True
-        print "we still need a valid email"
+        #print "we still need a valid email"
         return False
 
     return invite
@@ -78,19 +78,19 @@ class BetaMiddleware(object):
         self.allow_flatpages = setting('HUNGER_ALLOW_FLATPAGES')
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        print 0
+        #print 0
         if not self.enable_beta:
             return
 
-        print 1
+        #print 1
         if (request.path in self.allow_flatpages or
             (getattr(settings, 'APPEND_SLASH', True) and
              '%s/' % request.path in self.allow_flatpages)):
             from django.contrib.flatpages.views import flatpage
-            print "returning flatpage!"
+            #print "returning flatpage!"
             return flatpage(request, request.path_info)
 
-        print 2
+        #print 2
         whitelisted_modules = ['django.contrib.auth.views',
                                'django.contrib.admin.sites',
                                'django.views.static',
@@ -108,36 +108,36 @@ class BetaMiddleware(object):
             whitelisted_modules += self.always_allow_modules
 
         if '%s' % view_func.__module__ in whitelisted_modules:
-            print "whitelisted"
+            #print "whitelisted"
             return
 
-        print 3
+        #print 3
         if (full_view_name in self.always_allow_views or
                 view_name in self.always_allow_views):
             return
 
-        print 4
+        #print 4
         if not request.user.is_authenticated():
             return redirect(self.redirect)
 
-        print 5
+        #print 5
         if request.user.is_staff:
             return
-        print 6
+        #print 6
 
         # Prevent queries by caching in_beta status in session
         if request.session.get('hunger_in_beta'):
             return
 
-        print 7
+        #print 7
 
         invitations = request.user.invitation_set.select_related('code')
-        print "USER", request.user, request.user.email
-        print "INVITATIONS", invitations
+        #print "USER", request.user, request.user.email
+        #print "INVITATIONS", invitations
 
         if not invitations and not request.COOKIES.get('hunger_code'):
-            print "no invitations, no code for logged in user,"
-            print "make one and redirect"
+            #print "no invitations, no code for logged in user,"
+            #print "make one and redirect"
             invitation = Invitation(
                 user=request.user,
                 email=request.user.email
@@ -145,25 +145,25 @@ class BetaMiddleware(object):
             invitation.save()
             return redirect(self.redirect)
 
-        print 8
+        #print 8
 
         if any([i.used for i in invitations]):
-            print "some are used, therefore we are in Beta"
+            #print "some are used, therefore we are in Beta"
             request.session['hunger_in_beta'] = True
             return
 
-        print 9
+        #print 9
 
         # User has been invited - use the invitation and place in beta.
         activates = [i for i in invitations if i.invited and not i.used]
         for invitation in activates:
-            print "let's activate"
+            #print "let's activate"
             invitation.used = now()
             invitation.save()
             request.session['hunger_in_beta'] = True
             return
 
-        print 10
+        #print 10
         # get from cookie, assume is authenticated and has email.
         invite = invite_from_cookie_and_email(request)
         if invite:
