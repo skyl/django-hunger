@@ -1,6 +1,9 @@
-import string, random
+import string
+import random
+
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
+
 from hunger.utils import setting
 from hunger.signals import invite_sent
 

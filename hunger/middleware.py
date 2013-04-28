@@ -36,22 +36,25 @@ class BetaMiddleware(object):
 
     def __init__(self):
         self.enable_beta = setting('HUNGER_ENABLE')
-
         self.always_allow_views = setting('HUNGER_ALWAYS_ALLOW_VIEWS')
         self.always_allow_modules = setting('HUNGER_ALWAYS_ALLOW_MODULES')
         self.redirect = setting('HUNGER_REDIRECT')
         self.allow_flatpages = setting('HUNGER_ALLOW_FLATPAGES')
 
     def process_view(self, request, view_func, view_args, view_kwargs):
+        print 0
         if not self.enable_beta:
             return
 
+        print 1
         if (request.path in self.allow_flatpages or
             (getattr(settings, 'APPEND_SLASH', True) and
              '%s/' % request.path in self.allow_flatpages)):
             from django.contrib.flatpages.views import flatpage
+            print "returning flatpage!"
             return flatpage(request, request.path_info)
 
+        print 2
         whitelisted_modules = ['django.contrib.auth.views',
                                'django.contrib.admin.sites',
                                'django.views.static',
@@ -70,32 +73,35 @@ class BetaMiddleware(object):
 
         if '%s' % view_func.__module__ in whitelisted_modules:
             return
-
+        print 3
         if (full_view_name in self.always_allow_views or
-            view_name in self.always_allow_views):
+                view_name in self.always_allow_views):
             return
 
+        print 4
         if not request.user.is_authenticated():
+            print "NOT AUTHENTEICATED?"
             return redirect(self.redirect)
-
+        print 5
         if request.user.is_staff:
             return
-
+        print 6
         # Prevent queries by caching in_beta status in session
         if request.session.get('hunger_in_beta'):
             return
-
+        print 7
         cookie_code = request.COOKIES.get('hunger_code')
         invitations = Invitation.objects.filter(
             Q(user=request.user) |
             Q(email=request.user.email)
-            ).select_related('code')
+        ).select_related('code')
 
         # User already in the beta - cache in_beta in session
         if any([i.used for i in invitations if i.invited]):
             request.session['hunger_in_beta'] = True
             return
 
+        print 8
         # User has been invited - use the invitation and place in beta.
         activates = [i for i in invitations if i.invited and not i.used]
 
@@ -110,7 +116,7 @@ class BetaMiddleware(object):
                     request.session['hunger_in_beta'] = True
                     request._hunger_delete_cookie = True
                     return
-
+        print 9
         # No cookie - let's just choose the first invitation if it exists
         if activates:
             invitation = activates[0]
@@ -120,22 +126,22 @@ class BetaMiddleware(object):
             invitation.save()
             request.session['hunger_in_beta'] = True
             return
-
-
+        print 10
         if not cookie_code:
             if not invitations:
                 invitation = Invitation(user=request.user)
                 invitation.save()
-            return redirect(self.redirect)
-
+            return
+        print 11
         # No invitation, all we have is this cookie code
         try:
-            code = InvitationCode.objects.get(code=cookie_code,
-                num_invites__gt=0)
+            code = InvitationCode.objects.get(
+                code=cookie_code, num_invites__gt=0)
         except InvitationCode.DoesNotExist:
             request._hunger_delete_cookie = True
             return redirect(reverse('hunger-invalid', args=(cookie_code,)))
 
+        print 12
         right_now = now()
         if code.private:
             # If we got here, we're trying to fix up a previous private
@@ -151,6 +157,7 @@ class BetaMiddleware(object):
                                     invited=right_now,
                                     used=right_now)
             code.num_invites -= 1
+        print 13
         invitation.save()
         code.save()
         return

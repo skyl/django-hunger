@@ -27,12 +27,24 @@ class InviteView(FormView):
     def form_invalid(self, form):
         return super(InviteView, self).form_valid(form)
 
+
 class NotBetaView(TemplateView):
     """
     Display a message to the user after the invite request is completed
     successfully.
     """
-    template_name='hunger/not_in_beta.html'
+    template_name = 'hunger/not_in_beta.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated():
+            invitations = request.user.invitation_set.all()
+            if any(i.used for i in invitations):
+                return redirect(setting("HUNGER_VERIFIED_REDIRECT"))
+        #print "OOOOOOK"
+        #print args
+        #print kwargs
+        #import IPython; IPython.embed()
+        return super(TemplateView, self).dispatch(request, *args, **kwargs)
 
 
 class VerifiedView(TemplateView):
@@ -40,7 +52,7 @@ class VerifiedView(TemplateView):
     Display a message to the user after the invite request is completed
     successfully.
     """
-    template_name='hunger/verified.html'
+    template_name = 'hunger/verified.html'
 
 
 class InvalidView(TemplateView):
@@ -48,7 +60,7 @@ class InvalidView(TemplateView):
     Display a message to the user that the invitation code is
     invalid or has already been used.
     """
-    template_name='hunger/invalid.html'
+    template_name = 'hunger/invalid.html'
 
 
 def verify_invite(request, code):
