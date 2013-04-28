@@ -12,22 +12,48 @@ User = setting('AUTH_USER_MODEL')
 
 class Invitation(models.Model):
     user = models.ForeignKey(User, blank=True, null=True)
-    email = models.EmailField(_('Email'), blank=True, null=True)
+    email = models.EmailField(_('Email'), blank=True)
     code = models.ForeignKey('InvitationCode', blank=True, null=True)
     used = models.DateTimeField(_('Used'), blank=True, null=True)
     invited = models.DateTimeField(_('Invited'), blank=True, null=True)
     created = models.DateTimeField(_('Created'), auto_now_add=True)
 
+    class Meta:
+        unique_together = (('user', 'code'),)
+
+    def __unicode__(self):
+        return "user:%s email:%s code:%s used:%s invited:%s" % (
+            self.user,
+            self.email,
+            self.code,
+            self.used,
+            self.invited,
+        )
+
     def save(self, *args, **kwargs):
         send_email = kwargs.pop('send_email', False)
-        request = kwargs.pop('request', None)
         if send_email and self.invited and not self.used:
+            request = kwargs.pop('request', None)
             invite_sent.send(sender=self.__class__, invitation=self,
                              request=request, user=self.user)
         super(Invitation, self).save(*args, **kwargs)
 
-    class Meta:
-        unique_together = (('user', 'code'),)
+    def accept_invite(self, user):
+        """
+        When we have an invite with just a code and email,
+        We can add the user to it.
+        """
+        assert user.email == self.email
+        assert self.code is not None
+
+        from hunger.utils import now
+        self.user = user
+        self.used = now()
+        self.invited = now()
+        self.save()
+        self.code.num_invites -= 1
+        self.code.save()
+        print "we used the code", self.code
 
 
 class InvitationCode(models.Model):

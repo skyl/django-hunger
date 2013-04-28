@@ -11,8 +11,8 @@ class BetaViewTests(TestCase):
 
     redirect = setting('HUNGER_REDIRECT')
 
-    def create_invite(self, email):
-        code = InvitationCode(num_invites=0)
+    def create_invite(self, email, code_str="foobar"):
+        code = InvitationCode(num_invites=100, code=code_str)
         code.save()
         invitation = Invitation(code=code, email=email, invited=now())
         invitation.save()
@@ -33,14 +33,19 @@ class BetaViewTests(TestCase):
         Bob is registered and in beta (self-signup)
         Charlie is in beta and has one invite
         """
-        self.alice = User.objects.create_user('alice', 'alice@example.com', 'secret')
-        self.bob = User.objects.create_user('bob', 'bob@example.com', 'secret')
+        self.alice = User.objects.create_user(
+            'alice', 'alice@example.com', 'secret')
+        self.bob = User.objects.create_user(
+            'bob', 'bob@example.com', 'secret')
         right_now = now()
-        invitation = Invitation(user=self.bob, invited=right_now, used=right_now)
+        invitation = Invitation(
+            user=self.bob, invited=right_now, used=right_now)
         invitation.save()
 
-        self.charlie = User.objects.create_user('charlie', 'charlie@example.com', 'secret')
-        invitation = Invitation(user=self.charlie, invited=right_now, used=right_now)
+        self.charlie = User.objects.create_user(
+            'charlie', 'charlie@example.com', 'secret')
+        invitation = Invitation(
+            user=self.charlie, invited=right_now, used=right_now)
         invitation.save()
         code = InvitationCode(owner=self.charlie)
         code.save()
@@ -72,23 +77,10 @@ class BetaViewTests(TestCase):
         response = self.client.get(reverse('invited_only'))
         self.assertEqual(response.status_code, 200)
 
-    def test_user_invite(self):
-        self.client.login(username='charlie', password='secret')
-        response = self.client.post(reverse('hunger-invite'), {'email': 'cary@example.com'})
-        self.assertEqual(response.status_code, 302)
-        self.client.logout()
-
-        # Replace with examining email body
-        invitation = Invitation.objects.get(email='cary@example.com')
-        self.client.get(reverse('hunger-verify', args=[invitation.code.code]))
-
-        User.objects.create_user('dany', 'dany@example.com', 'secret')
-        self.client.login(username='dany', password='secret')
-        response = self.client.get(reverse('invited_only'))
-        self.assertEqual(response.status_code, 200)
-
     def test_invite_non_user_with_email(self):
         self.create_invite(email='dany@example.com')
+        self.client.get(reverse("hunger-verify", args=["foobar"]))
+
         User.objects.create_user('dany', 'dany@example.com', 'secret')
         self.client.login(username='dany', password='secret')
         response = self.client.get(reverse('invited_only'))
@@ -97,20 +89,7 @@ class BetaViewTests(TestCase):
     def test_invite_existing_user_with_email(self):
         self.create_invite(email='alice@example.com')
         self.client.login(username='alice', password='secret')
+        self.client.get(reverse("hunger-verify", args=["foobar"]))
         response = self.client.get(reverse('invited_only'))
-        self.assertEqual(response.status_code, 200)
-
-    def test_invite_non_user_without_email(self):
-        code = self.create_code(email='dany1@example.com')
-        self.client.get(reverse('hunger-verify', args=[code.code]))
-        User.objects.create_user('dany', 'dany@example.com', 'secret')
-        self.client.login(username='dany', password='secret')
-        response = self.client.get(reverse('invited_only'))
-        self.assertEqual(response.status_code, 200)
-
-    def test_invite_existing_user_without_email(self):
-        code = self.create_code(email='alice1@example.com')
-        self.client.get(reverse('hunger-verify', args=[code.code]))
-        self.client.login(username='alice', password='secret')
-        response = self.client.get(reverse('invited_only'))
+        #import IPython; IPython.embed()
         self.assertEqual(response.status_code, 200)

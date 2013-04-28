@@ -37,22 +37,15 @@ def export_email(modeladmin, request, queryset):
 
 def send_invite(modeladmin, request, queryset):
     for obj in queryset:
-        if not obj.invited:
-            obj.invited = now()
-            obj.save(send_email=True, request=request)
-
-
-def resend_invite(modeladmin, request, queryset):
-    for obj in queryset:
-        if obj.invited:
-            obj.save(send_email=True, request=request)
+        obj.invited = now()
+        obj.save(send_email=True, request=request)
 
 
 class InvitationAdmin(admin.ModelAdmin):
-    list_display = ('user', 'code', 'used', 'invited')
+    list_display = ('user', 'email', 'code', 'used', 'invited')
     list_filter = ('code',)
     search_fields = ['user__username', 'user__email']
-    actions = [send_invite, resend_invite, export_email]
+    actions = [send_invite, export_email]
 
 
 class InvitationCodeAdmin(admin.ModelAdmin):

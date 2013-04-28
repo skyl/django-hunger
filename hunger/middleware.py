@@ -1,9 +1,45 @@
+import logging
+
 from django.conf import settings
-from django.core.urlresolvers import reverse, resolve
+from django.core.urlresolvers import resolve
 from django.shortcuts import redirect
-from django.db.models import Q
+
 from hunger.models import InvitationCode, Invitation
 from hunger.utils import setting, now
+
+
+logger = logging.getLogger(__name__)
+
+
+def invite_from_cookie_and_email(request):
+    print 90
+    cookie_code = request.COOKIES.get('hunger_code')
+    print "code", cookie_code
+    if not cookie_code:
+        print "missed, no cookie, nada,  returning redirect"
+        return False
+
+    # No invitation, all we have is this cookie code
+    try:
+        code = InvitationCode.objects.get(
+            code=cookie_code, num_invites__gt=0)
+    except InvitationCode.DoesNotExist:
+        print "invalid cookie code"
+        request._hunger_delete_cookie = True
+        return False
+
+    # try to get the email for the code
+    try:
+        invite = Invitation.objects.get(
+            code=code,
+            email=request.user.email
+        )
+    except Invitation.DoesNotExist:
+        request._hunger_delete_cookie = True
+        print "we still need a valid email"
+        return False
+
+    return invite
 
 
 class BetaMiddleware(object):
@@ -42,15 +78,19 @@ class BetaMiddleware(object):
         self.allow_flatpages = setting('HUNGER_ALLOW_FLATPAGES')
 
     def process_view(self, request, view_func, view_args, view_kwargs):
+        print 0
         if not self.enable_beta:
             return
 
+        print 1
         if (request.path in self.allow_flatpages or
             (getattr(settings, 'APPEND_SLASH', True) and
              '%s/' % request.path in self.allow_flatpages)):
             from django.contrib.flatpages.views import flatpage
+            print "returning flatpage!"
             return flatpage(request, request.path_info)
 
+        print 2
         whitelisted_modules = ['django.contrib.auth.views',
                                'django.contrib.admin.sites',
                                'django.views.static',
@@ -68,83 +108,69 @@ class BetaMiddleware(object):
             whitelisted_modules += self.always_allow_modules
 
         if '%s' % view_func.__module__ in whitelisted_modules:
+            print "whitelisted"
             return
+
+        print 3
         if (full_view_name in self.always_allow_views or
                 view_name in self.always_allow_views):
             return
 
+        print 4
         if not request.user.is_authenticated():
             return redirect(self.redirect)
+
+        print 5
         if request.user.is_staff:
             return
+        print 6
+
         # Prevent queries by caching in_beta status in session
         if request.session.get('hunger_in_beta'):
             return
-        cookie_code = request.COOKIES.get('hunger_code')
-        invitations = Invitation.objects.filter(
-            Q(user=request.user) |
-            Q(email=request.user.email)
-        ).select_related('code')
 
-        # User already in the beta - cache in_beta in session
-        if any([i.used for i in invitations if i.invited]):
+        print 7
+
+        invitations = request.user.invitation_set.select_related('code')
+        print "USER", request.user, request.user.email
+        print "INVITATIONS", invitations
+
+        if not invitations and not request.COOKIES.get('hunger_code'):
+            print "no invitations, no code for logged in user,"
+            print "make one and redirect"
+            invitation = Invitation(
+                user=request.user,
+                email=request.user.email
+            )
+            invitation.save()
+            return redirect(self.redirect)
+
+        print 8
+
+        if any([i.used for i in invitations]):
+            print "some are used, therefore we are in Beta"
             request.session['hunger_in_beta'] = True
             return
 
+        print 9
+
         # User has been invited - use the invitation and place in beta.
         activates = [i for i in invitations if i.invited and not i.used]
-
-        # Check for matching cookie code if available.
-        if cookie_code:
-            for invitation in activates:
-                if invitation.code.code == cookie_code:
-                    # Invitation may be attached to email
-                    invitation.user = request.user
-                    invitation.used = now()
-                    invitation.save()
-                    request.session['hunger_in_beta'] = True
-                    request._hunger_delete_cookie = True
-                    return
-        # No cookie - let's just choose the first invitation if it exists
-        if activates:
-            invitation = activates[0]
-            # Invitation may be attached to email
-            invitation.user = request.user
+        for invitation in activates:
+            print "let's activate"
             invitation.used = now()
             invitation.save()
             request.session['hunger_in_beta'] = True
             return
-        if not cookie_code:
-            if not invitations:
-                invitation = Invitation(user=request.user)
-                invitation.save()
-            return
-        # No invitation, all we have is this cookie code
-        try:
-            code = InvitationCode.objects.get(
-                code=cookie_code, num_invites__gt=0)
-        except InvitationCode.DoesNotExist:
-            request._hunger_delete_cookie = True
-            return redirect(reverse('hunger-invalid', args=(cookie_code,)))
 
-        right_now = now()
-        if code.private:
-            # If we got here, we're trying to fix up a previous private
-            # invitation to the correct user/email.
-            invitation = Invitation.objects.filter(code=code)[0]
-            invitation.user = request.user
-            invitation.invited = right_now
-            invitation.used = right_now
-            code.num_invites = 0
+        print 10
+        # get from cookie, assume is authenticated and has email.
+        invite = invite_from_cookie_and_email(request)
+        if invite:
+            invite.accept_invite(request.user)
+            return
         else:
-            invitation = Invitation(user=request.user,
-                                    code=code,
-                                    invited=right_now,
-                                    used=right_now)
-            code.num_invites -= 1
-        invitation.save()
-        code.save()
-        return
+            return redirect(self.redirect)
 
     def process_response(self, request, response):
         if getattr(request, '_hunger_delete_cookie', False):

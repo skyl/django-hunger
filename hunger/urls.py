@@ -3,6 +3,7 @@ from .views import InviteView, VerifiedView, InvalidView, NotBetaView
 
 
 urlpatterns = patterns('',
+    url(r'^verify$', 'hunger.views.verify_invite', name='hunger-verify'),
     url(r'^verify/(\w+)/$', 'hunger.views.verify_invite', name='hunger-verify'),
     url(r'^invite/$', InviteView.as_view(), name='hunger-invite'),
     # url(r'^sent/$', ConfirmationView.as_view(), name='hunger-confirmation'),

@@ -1,10 +1,12 @@
 from django.core.urlresolvers import reverse_lazy
+from django.views.generic.base import TemplateView
+from django.views.generic.edit import FormView
 from django.shortcuts import redirect
+
 from hunger.models import InvitationCode
 from hunger.forms import InviteSendForm
 from hunger.utils import setting, now
-from django.views.generic.base import TemplateView
-from django.views.generic.edit import FormView
+from hunger.middleware import invite_from_cookie_and_email
 
 
 class InviteView(FormView):
@@ -37,9 +39,14 @@ class NotBetaView(TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated():
+            verified_redirect = redirect(setting("HUNGER_VERIFIED_REDIRECT"))
             invitations = request.user.invitation_set.all()
-            if any(i.used for i in invitations):
-                return redirect(setting("HUNGER_VERIFIED_REDIRECT"))
+            if any(i.used or i.invited for i in invitations):
+                print "IN VIEW - used or invited"
+                return verified_redirect
+            if invite_from_cookie_and_email(request):
+                print "IN BETA VIEW - we can get_from_cookie"
+                return verified_redirect
 
         return super(TemplateView, self).dispatch(request, *args, **kwargs)
 
@@ -60,7 +67,8 @@ class InvalidView(TemplateView):
     template_name = 'hunger/invalid.html'
 
 
-def verify_invite(request, code):
+def verify_invite(request, code=None):
     response = redirect(setting('HUNGER_VERIFIED_REDIRECT'))
-    response.set_cookie('hunger_code', code)
+    if code:
+        response.set_cookie('hunger_code', code)
     return response
