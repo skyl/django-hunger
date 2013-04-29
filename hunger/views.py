@@ -5,7 +5,7 @@ from django.views.generic.base import TemplateView
 from django.views.generic.edit import FormView
 from django.shortcuts import redirect
 
-from hunger.models import InvitationCode
+from hunger.models import InvitationCode, Invitation
 from hunger.forms import InviteSendForm
 from hunger.utils import setting, now
 from hunger.middleware import invite_from_cookie_and_email
@@ -46,11 +46,17 @@ class NotBetaView(TemplateView):
             verified_redirect = redirect(setting("HUNGER_VERIFIED_REDIRECT"))
             invitations = request.user.invitation_set.all()
             if any(i.used or i.invited for i in invitations):
-                ##print "IN VIEW - used or invited"
                 return verified_redirect
+
             elif invite_from_cookie_and_email(request):
-                ##print "IN BETA VIEW - we can get_from_cookie"
                 return verified_redirect
+
+            elif not invitations:
+                invitation = Invitation(
+                    user=request.user,
+                    email=request.user.email
+                )
+                invitation.save()
 
         return super(TemplateView, self).dispatch(request, *args, **kwargs)
 

@@ -1,4 +1,5 @@
 import os.path
+import logging
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -14,6 +15,8 @@ try:
 except ImportError:
     templated_email_available = False
 
+logger = logging.getLogger(__name__)
+
 
 def beta_invite(email, code, request, **kwargs):
     """
@@ -22,11 +25,19 @@ def beta_invite(email, code, request, **kwargs):
     django template engine.
     """
     context_dict = kwargs.copy()
-    context_dict.setdefault(
-        "invite_url",
-        request.build_absolute_uri(
-            reverse("hunger-verify", args=[code]))
-    )
+    if code:
+        invite_url = request.build_absolute_uri(
+            reverse("hunger-verify", args=[code])
+        )
+    else:
+        # in invitation_code_sent,
+        # if the invitation has a user, we do not need a code.
+        invite_url = request.build_absolute_uri('/')
+
+    logger.debug("%s %s" % (code, invite_url))
+
+    context_dict.setdefault("invite_url", invite_url)
+
     context = Context(context_dict)
 
     templates_folder = setting('HUNGER_EMAIL_TEMPLATES_DIR')
